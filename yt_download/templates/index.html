@@ -1,129 +1,202 @@
+{#yt_download/templates/index.html#}
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>YouTube Downloader</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>YouTube Downloader</title>
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
 <div class="container py-5">
-  <div class="row justify-content-center">
-    <div class="col-md-8">
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <h1 class="mb-4">YouTube Downloader</h1>
-          <form id="download-form">
-            <div class="mb-3">
-              <input type="text" class="form-control" name="url" id="url" placeholder="YouTube URL" required>
-            </div>
-            <button type="submit" class="btn btn-primary">Fetch Qualities</button>
-          </form>
-          <div id="streams-section" class="mt-4" style="display:none;">
-            <h5>Select Quality</h5>
-            <form id="select-stream-form">
-              <input type="hidden" id="select-url" name="url">
-              <input type="hidden" id="select-task-id" name="task_id">
-              <div class="mb-3">
-                <select class="form-select" id="stream-select" name="itag" required></select>
-              </div>
-              <button type="submit" class="btn btn-success">Download Selected</button>
-            </form>
-          </div>
-          <div id="progress-section" class="mt-4" style="display:none;">
-            <div class="progress mb-2">
-              <div id="progress-bar" class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
-            </div>
-            <div id="eta" class="text-muted small"></div>
-          </div>
-          <div id="error-message" class="alert alert-danger mt-3 d-none"></div>
-        </div>
-      </div>
-    </div>
-  </div>
+	<div class="row justify-content-center">
+		<div class="col-md-8">
+			<div class="card shadow-sm">
+				<div class="card-body">
+					<h1 class="mb-4">YouTube Downloader</h1>
+					<form id="download-form">
+						<div class="mb-3">
+							<input
+									type="text" class="form-control" name="url" id="url" placeholder="YouTube URL"
+									required>
+						</div>
+						<button type="submit" class="btn btn-primary">Fetch Qualities</button>
+					</form>
+					<div id="loading-spinner" class="text-center my-4" style="display:none;">
+						<div class="spinner-border text-primary" role="status">
+							<span class="visually-hidden">Loading...</span>
+						</div>
+						<div>Fetching video info...</div>
+					</div>
+					<div id="video-info" class="mt-4" style="display:none;">
+						<div class="card mb-3" style="max-width: 540px;">
+							<div class="row g-0">
+								<div class="col-md-4">
+									<img id="video-thumb" src="" class="img-fluid rounded-start" alt="...">
+								</div>
+								<div class="col-md-8">
+									<div class="card-body">
+										<h5 class="card-title" id="video-title"></h5>
+										<p class="card-text"><small class="text-muted" id="video-duration"></small></p>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					<div id="streams-section" class="mt-4" style="display:none;">
+						<h5>Select Quality</h5>
+						<form id="select-stream-form">
+							<input type="hidden" id="select-url" name="url">
+							<input type="hidden" id="select-task-id" name="task_id">
+							<div class="mb-3">
+								<select class="form-select" id="stream-select" name="itag" required></select>
+							</div>
+							<button type="submit" class="btn btn-success">Download Selected</button>
+						</form>
+					</div>
+					<div id="progress-section" class="mt-4" style="display:none;">
+						<div class="progress mb-2">
+							<div id="progress-bar" class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
+						</div>
+						<div id="eta" class="text-muted small"></div>
+					</div>
+					<div id="error-message" class="alert alert-danger mt-3 d-none"></div>
+				</div>
+			</div>
+		</div>
+	</div>
 </div>
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script>
-let currentUrl = '';
-let currentTaskId = '';
-$(function() {
-  $('#download-form').on('submit', function(e) {
-    e.preventDefault();
-    $('#progress-section').hide();
-    $('#streams-section').hide();
-    $('#error-message').addClass('d-none').text('');
-    const url = $('#url').val();
-    $.post('/start_download', {url: url}, function(data) {
-      if (data.task_id) {
-        currentUrl = url;
-        currentTaskId = data.task_id;
-        fetchStreams(data.task_id);
-      } else if (data.error) {
-        $('#error-message').removeClass('d-none').text(data.error);
-      }
-    });
-  });
+    let currentUrl = '';
+    let currentTaskId = '';
 
-  function fetchStreams(task_id) {
-    $.get('/streams/' + task_id, function(data) {
-      if (data.status === 'ready') {
-        const streams = data.streams;
-        const select = $('#stream-select');
-        select.empty();
-        streams.forEach(function(s) {
-          let label = `${s.resolution || ''} ${s.abr || ''} (${(s.filesize/1048576).toFixed(2)} MB)`;
-          select.append(`<option value="${s.itag}">${label}</option>`);
+    $(function () {
+        // Submit URL form
+        $('#download-form').on('submit', function (e) {
+            e.preventDefault();
+            resetUI();
+            const url = $('#url').val();
+            $.post('/start_download', {url: url}, function (data) {
+                if (data.task_id) {
+                    currentUrl = url;
+                    currentTaskId = data.task_id;
+                    fetchStreams(data.task_id);
+                } else if (data.error) {
+                    showError(data.error);
+                }
+            });
         });
-        $('#select-url').val(currentUrl);
-        $('#select-task-id').val(task_id);
-        $('#streams-section').show();
-      } else if (data.status === 'error') {
-        $('#error-message').removeClass('d-none').text(data.error);
-      } else {
-        setTimeout(function() { fetchStreams(task_id); }, 1000);
-      }
-    });
-  }
 
-  $('#select-stream-form').on('submit', function(e) {
-    e.preventDefault();
-    $('#progress-section').show();
-    $('#progress-bar').css('width', '0%').text('0%');
-    $('#eta').text('');
-    $('#error-message').addClass('d-none').text('');
-    const url = $('#select-url').val();
-    const itag = $('#stream-select').val();
-    const task_id = $('#select-task-id').val();
-    $.post('/download_selected', {url: url, itag: itag, task_id: task_id}, function(data) {
-      if (data.task_id) {
-        pollProgress(data.task_id);
-      } else if (data.error) {
-        $('#error-message').removeClass('d-none').text(data.error);
-      }
-    });
-  });
+        // Fetch stream qualities
+        function fetchStreams(task_id) {
+            $.get('/streams/' + task_id, function (data) {
+                if (data.status === 'ready') {
+                    populateVideoInfo(data);
+                    populateStreams(data.streams);
+                    $('#select-url').val(currentUrl);
+                    $('#select-task-id').val(task_id);
+                    $('#streams-section').show();
+                } else if (data.status === 'error') {
+                    showError(data.error);
+                } else {
+                    setTimeout(function () {
+                        fetchStreams(task_id);
+                    }, 1000);
+                }
+            });
+        }
 
-  function pollProgress(task_id) {
-    $.get('/progress/' + task_id, function(data) {
-      if (data.error) {
-        $('#error-message').removeClass('d-none').text(data.error);
-        $('#progress-section').hide();
-        return;
-      }
-      let percent = Math.round((data.progress || 0) * 100);
-      $('#progress-bar').css('width', percent + '%').text(percent + '%');
-      $('#eta').text(data.eta ? 'ETA: ' + data.eta : '');
-      if (data.status === 'done') {
-        window.location = '/download/' + task_id;
-      } else if (data.status === 'error') {
-        $('#error-message').removeClass('d-none').text(data.error);
-        $('#progress-section').hide();
-      } else {
-        setTimeout(function() { pollProgress(task_id); }, 1000);
-      }
+        // Submit stream selection
+        $('#select-stream-form').on('submit', function (e) {
+            e.preventDefault();
+            $('#progress-section').show();
+            $('#progress-bar').css('width', '0%').text('0%');
+            $('#eta').text('');
+            $('#error-message').addClass('d-none').text('');
+            const url = $('#select-url').val();
+            const itag = $('#stream-select').val();
+            const task_id = $('#select-task-id').val();
+            $.post('/download_selected', {url: url, itag: itag, task_id: task_id}, function (data) {
+                if (data.task_id) {
+                    pollProgress(data.task_id);
+                } else if (data.error) {
+                    showError(data.error);
+                }
+            });
+        });
+
+        // Poll download progress
+        function pollProgress(task_id) {
+            $.get('/progress/' + task_id, function (data) {
+                if (data.error) {
+                    showError(data.error);
+                    $('#progress-section').hide();
+                    return;
+                }
+
+                const percent = Math.round((data.progress || 0) * 100);
+                $('#progress-bar').css('width', percent + '%').text(percent + '%');
+                $('#eta').text(data.eta ? 'ETA: ' + data.eta : '');
+
+                if (data.status === 'done') {
+                    window.location = '/download/' + task_id;
+                } else if (data.status === 'error') {
+                    showError(data.error);
+                    $('#progress-section').hide();
+                } else {
+                    setTimeout(function () {
+                        pollProgress(task_id);
+                    }, 1000);
+                }
+            });
+        }
+
+        // Populate stream select dropdown
+        function populateStreams(streams) {
+            const select = $('#stream-select');
+            select.empty();
+            streams.forEach(function (s) {
+                let label = '';
+                if (s.only_audio) {
+                    label = `Audio Only - ${s.abr || 'Unknown bitrate'} (${(s.filesize / 1048576).toFixed(1)} MB)`;
+                } else {
+                    const quality = s.resolution || (s.abr || 'Unknown Quality');
+                    const type = s.is_progressive ? 'Video + Audio' : (s.is_adaptive ? 'Video Only' : 'Unknown Type');
+                    label = `${quality} - ${type} (${(s.filesize / 1048576).toFixed(1)} MB)`;
+                }
+                select.append(`<option value="${s.itag}">${label}</option>`);
+            });
+        }
+
+        // Populate video thumbnail, title, and duration
+        function populateVideoInfo(data) {
+            $('#video-thumb').attr('src', data.thumbnail);
+            $('#video-title').text(data.title || 'Unknown Title');
+            $('#video-duration').text(formatDuration(data.duration || 0));
+            $('#video-info').show();
+        }
+
+        // Convert duration (in seconds) to "Xm Ys" format
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}m ${secs}s`;
+        }
+
+        // Handle errors
+        function showError(message) {
+            $('#error-message').removeClass('d-none').text(message);
+        }
+
+        // Reset UI sections before a new fetch
+        function resetUI() {
+            $('#progress-section').hide();
+            $('#streams-section').hide();
+            $('#video-info').hide();
+            $('#error-message').addClass('d-none').text('');
+        }
     });
-  }
-});
 </script>
 </body>
 </html>
