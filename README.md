@@ -1,3 +1,5 @@
+![Project Cover](cover_image.png)
+
 # YouTube Video Downloader (Educational Purposes Only)
 
 This project is a modern, web-based **YouTube video downloader** built with **Python** and **Flask**, designed purely for **educational purposes**. It offers a straightforward interface for fetching and downloading video or audio streams from YouTube links.
